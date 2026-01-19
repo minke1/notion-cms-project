@@ -9,12 +9,16 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@notionhq/client": "^5.7.0",
+    "@radix-ui/react-select": "^2.2.6",
+    "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.562.0",
     "next": "^15.1.5",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "recharts": "^3.6.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7"
   },
