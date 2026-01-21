@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { DashboardData, Portfolio, ExchangeRate, DividendLog } from "@/types/dividend";
 import { processDashboardData } from "@/lib/dividend-utils";
 import { SummaryCards } from "./summary-cards";
 import { YearSelector } from "./year-selector";
 import { MonthlyChart } from "./monthly-chart";
 import { DividendTable } from "./dividend-table";
+import { DashboardSkeleton } from "./dashboard-skeleton";
 
 interface DashboardContentProps {
   portfolios: Portfolio[];
@@ -25,13 +26,26 @@ export function DashboardContent({
     return Array.from(years).sort((a, b) => b - a);
   }, [dividendLogs]);
 
-  // 선택된 연도 상태 (기본값: 가장 최신 연도)
-  const [selectedYear, setSelectedYear] = useState(availableYears[0] || new Date().getFullYear());
+  // 선택된 연도 상태 (기본값: 가장 최신 연도 또는 null)
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+
+  // 클라이언트에서 초기 연도 설정 (hydration mismatch 방지)
+  useEffect(() => {
+    if (selectedYear === null) {
+      setSelectedYear(availableYears[0] || new Date().getFullYear());
+    }
+  }, [availableYears, selectedYear]);
 
   // 대시보드 데이터 계산 (메모이제이션)
-  const dashboardData: DashboardData = useMemo(() => {
+  const dashboardData: DashboardData | null = useMemo(() => {
+    if (selectedYear === null) return null;
     return processDashboardData(dividendLogs, portfolios, exchangeRates, selectedYear);
   }, [dividendLogs, portfolios, exchangeRates, selectedYear]);
+
+  // 초기 로딩 중일 때 스켈레톤 표시
+  if (selectedYear === null || dashboardData === null) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="space-y-8">
