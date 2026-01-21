@@ -43,3 +43,9 @@ next-env.d.ts
 # claude code
 .mcp.json
 tmpclaude*
+.claude/settings.local.json
+.claude/skills/
+.claude/agents/docs/
+.playwright-mcp/
+prompt.md
+nul
