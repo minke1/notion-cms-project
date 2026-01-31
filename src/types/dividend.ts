@@ -1,4 +1,4 @@
-// Portfolio (종목) 타입
+// Portfolio (종목) 타입 - Supabase에서는 ticker만 사용
 export interface Portfolio {
   id: string;
   name: string;
@@ -7,7 +7,7 @@ export interface Portfolio {
   dividendFrequency: "monthly" | "quarterly" | "semi-annual" | "annual";
 }
 
-// Exchange Rate (환율) 타입
+// Exchange Rate (환율) 타입 - 현재 미사용 (추후 확장용)
 export interface ExchangeRate {
   id: string;
   month: string; // YYYY-MM format
@@ -24,7 +24,18 @@ export interface DividendLog {
   exchangeRateMonthId: string;
 }
 
-// 확장된 배당 내역 (조인된 데이터)
+// Supabase용 배당 데이터 타입
+export interface DividendRecord {
+  id: number;
+  ticker: string;
+  dividend: number;
+  currency: string; // "USD" | "KRW"
+  year: number;
+  month: number;
+  createdAt: string;
+}
+
+// 확장된 배당 내역 (조인된 데이터) - KRW 옵셔널
 export interface DividendLogWithDetails extends DividendLog {
   portfolio: Portfolio;
   exchangeRate: ExchangeRate | null;
@@ -43,6 +54,7 @@ export interface PivotTableRow {
   portfolioId: string;
   ticker: string;
   name: string;
+  currency: string; // "USD" | "KRW"
   [month: string]: number | string; // 월별 금액 (동적 키)
 }
 
@@ -56,15 +68,18 @@ export interface PivotTableFooter {
 export interface DashboardSummary {
   totalUSD: number;
   totalKRW: number;
-  stockCount: number;
-  dividendCount: number;
+  stockCountUSD: number;
+  stockCountKRW: number;
+  dividendCountUSD: number;
+  dividendCountKRW: number;
 }
 
 // 대시보드 전체 데이터
 export interface DashboardData {
   summary: DashboardSummary;
   monthlyData: MonthlyDividendData[];
-  pivotRows: PivotTableRow[];
+  pivotRowsUSD: PivotTableRow[];
+  pivotRowsKRW: PivotTableRow[];
   pivotFooter: PivotTableFooter;
   availableYears: number[];
 }

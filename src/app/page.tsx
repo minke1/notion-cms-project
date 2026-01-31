@@ -5,15 +5,9 @@ import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 
 // 서버 컴포넌트에서 데이터 페칭
 async function DashboardLoader() {
-  const { portfolios, exchangeRates, dividendLogs } = await getAllDashboardData();
+  const { dividends } = await getAllDashboardData();
 
-  return (
-    <DashboardContent
-      portfolios={portfolios}
-      exchangeRates={exchangeRates}
-      dividendLogs={dividendLogs}
-    />
-  );
+  return <DashboardContent dividends={dividends} />;
 }
 
 export default function Home() {

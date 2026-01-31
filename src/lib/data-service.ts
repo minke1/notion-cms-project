@@ -1,172 +1,263 @@
 import { cache } from "react";
 import type {
-  PageObjectResponse,
-  PartialPageObjectResponse,
-} from "@notionhq/client/build/src/api-endpoints";
-import type { Portfolio, ExchangeRate, DividendLog } from "@/types/dividend";
-import { notion, USE_NOTION_API, DATABASE_IDS } from "./notion-client";
+  DividendRecord,
+  MonthlyDividendData,
+  PivotTableRow,
+  PivotTableFooter,
+  DashboardSummary,
+  DashboardData,
+} from "@/types/dividend";
 import {
-  mapNotionToPortfolio,
-  mapNotionToExchangeRate,
-  mapNotionToDividendLog,
-} from "./notion-mappers";
-import { mockPortfolios, mockExchangeRates, mockDividendLogs } from "./mock-data";
+  supabase,
+  USE_SUPABASE,
+  TABLE_NAMES,
+  type SupabaseDividend,
+} from "./supabase-client";
 
 // ===========================================
-// 데이터 조회 함수 (React.cache()로 요청 중복 제거)
+// Supabase 데이터 조회 함수
 // ===========================================
-// Notion API 연동: USE_NOTION_API가 true이면 Notion에서 조회
-// 환경 변수 미설정 또는 API 에러 시 Mock 데이터로 폴백
 
 /**
- * Notion API v5+ 에서는 dataSources.query를 사용
- * @param dataSourceId 데이터베이스 ID
+ * Supabase에서 배당 데이터 조회
  */
-async function queryNotionDataSource(dataSourceId: string) {
-  if (!notion) throw new Error("Notion client not initialized");
+async function fetchDividendsFromSupabase(): Promise<DividendRecord[]> {
+  if (!supabase) {
+    console.error("[Supabase] Client not initialized");
+    return [];
+  }
 
-  return notion.dataSources.query({
-    data_source_id: dataSourceId,
-  });
+  const { data, error } = await supabase
+    .from(TABLE_NAMES.dividends)
+    .select("*")
+    .order("d_year", { ascending: false })
+    .order("d_month", { ascending: false });
+
+  if (error) {
+    console.error("[Supabase] Error fetching dividends:", error);
+    return [];
+  }
+
+  // Supabase 형식을 내부 형식으로 변환
+  return (data as SupabaseDividend[]).map((row) => ({
+    id: row.id,
+    ticker: row.ticker,
+    dividend: row.dividend,
+    currency: row.currency || "USD",
+    year: parseInt(row.d_year, 10),
+    month: parseInt(row.d_month, 10),
+    createdAt: row.created_at,
+  }));
 }
 
 /**
- * 페이지 응답이 전체 페이지인지 확인하는 타입 가드
+ * 배당 데이터 조회 (캐시 적용)
  */
-function isFullPage(
-  page: PageObjectResponse | PartialPageObjectResponse
-): page is PageObjectResponse {
-  return "properties" in page;
-}
-
-/**
- * Portfolio (종목) 목록 조회
- */
-export const getPortfolios = cache(async (): Promise<Portfolio[]> => {
-  // Notion API 미사용 시 Mock 데이터 반환
-  if (!USE_NOTION_API || !notion || !DATABASE_IDS.portfolio) {
-    return mockPortfolios;
+export const getDividends = cache(async (): Promise<DividendRecord[]> => {
+  if (!USE_SUPABASE) {
+    console.warn("[Supabase] Not configured, returning empty data");
+    return [];
   }
 
-  try {
-    const response = await queryNotionDataSource(DATABASE_IDS.portfolio);
-
-    const portfolios = response.results
-      .filter((page): page is PageObjectResponse => isFullPage(page as PageObjectResponse | PartialPageObjectResponse))
-      .map((page) => mapNotionToPortfolio(page))
-      .filter((p): p is Portfolio => p !== null);
-
-    // 결과가 없으면 Mock 데이터 반환
-    if (portfolios.length === 0) {
-      console.warn("[Notion API] No portfolios found, using mock data");
-      return mockPortfolios;
-    }
-
-    return portfolios;
-  } catch (error) {
-    console.error("[Notion API] getPortfolios error:", error);
-    return mockPortfolios;
-  }
+  return fetchDividendsFromSupabase();
 });
-
-/**
- * ExchangeRate (환율) 목록 조회
- */
-export const getExchangeRates = cache(async (): Promise<ExchangeRate[]> => {
-  // Notion API 미사용 시 Mock 데이터 반환
-  if (!USE_NOTION_API || !notion || !DATABASE_IDS.exchangeRate) {
-    return mockExchangeRates;
-  }
-
-  try {
-    const response = await queryNotionDataSource(DATABASE_IDS.exchangeRate);
-
-    const exchangeRates = response.results
-      .filter((page): page is PageObjectResponse => isFullPage(page as PageObjectResponse | PartialPageObjectResponse))
-      .map((page) => mapNotionToExchangeRate(page))
-      .filter((er): er is ExchangeRate => er !== null);
-
-    // 결과가 없으면 Mock 데이터 반환
-    if (exchangeRates.length === 0) {
-      console.warn("[Notion API] No exchange rates found, using mock data");
-      return mockExchangeRates;
-    }
-
-    return exchangeRates;
-  } catch (error) {
-    console.error("[Notion API] getExchangeRates error:", error);
-    return mockExchangeRates;
-  }
-});
-
-/**
- * DividendLog (배당 내역) 목록 조회
- */
-export const getDividendLogs = cache(async (): Promise<DividendLog[]> => {
-  // Notion API 미사용 시 Mock 데이터 반환
-  if (!USE_NOTION_API || !notion || !DATABASE_IDS.dividendLog) {
-    return mockDividendLogs;
-  }
-
-  try {
-    const response = await queryNotionDataSource(DATABASE_IDS.dividendLog);
-
-    const dividendLogs = response.results
-      .filter((page): page is PageObjectResponse => isFullPage(page as PageObjectResponse | PartialPageObjectResponse))
-      .map((page) => mapNotionToDividendLog(page))
-      .filter((dl): dl is DividendLog => dl !== null);
-
-    // 결과가 없으면 Mock 데이터 반환
-    if (dividendLogs.length === 0) {
-      console.warn("[Notion API] No dividend logs found, using mock data");
-      return mockDividendLogs;
-    }
-
-    return dividendLogs;
-  } catch (error) {
-    console.error("[Notion API] getDividendLogs error:", error);
-    return mockDividendLogs;
-  }
-});
-
-// ===========================================
-// 복합 데이터 조회 함수 (기존 로직 유지)
-// ===========================================
-
-/**
- * 대시보드에 필요한 모든 데이터 병렬 조회
- * Promise.all()로 병렬 처리 (async-parallel)
- */
-export const getAllDashboardData = cache(async () => {
-  const [portfolios, exchangeRates, dividendLogs] = await Promise.all([
-    getPortfolios(),
-    getExchangeRates(),
-    getDividendLogs(),
-  ]);
-
-  return { portfolios, exchangeRates, dividendLogs };
-});
-
-/**
- * 특정 연도의 배당 내역 조회
- */
-export const getDividendLogsByYear = cache(
-  async (year: number): Promise<DividendLog[]> => {
-    const logs = await getDividendLogs();
-    return logs.filter((log) => {
-      const logYear = new Date(log.paymentDate).getFullYear();
-      return logYear === year;
-    });
-  }
-);
 
 /**
  * 사용 가능한 연도 목록 조회 (최신 연도 먼저)
  */
 export const getAvailableYears = cache(async (): Promise<number[]> => {
-  const logs = await getDividendLogs();
-  const years = new Set(
-    logs.map((log) => new Date(log.paymentDate).getFullYear())
-  );
+  const dividends = await getDividends();
+  const years = new Set(dividends.map((d) => d.year));
   return Array.from(years).sort((a, b) => b - a);
+});
+
+/**
+ * 특정 연도의 배당 데이터 조회
+ */
+export const getDividendsByYear = cache(
+  async (year: number): Promise<DividendRecord[]> => {
+    const dividends = await getDividends();
+    return dividends.filter((d) => d.year === year);
+  }
+);
+
+// ===========================================
+// 대시보드 데이터 처리 함수
+// ===========================================
+
+/**
+ * 월별 배당 데이터 집계 (차트용) - 통화별 분리
+ */
+function aggregateMonthlyData(dividends: DividendRecord[]): MonthlyDividendData[] {
+  const monthlyMap = new Map<string, { usd: number; krw: number }>();
+
+  dividends.forEach((d) => {
+    const monthKey = `${d.year}-${String(d.month).padStart(2, "0")}`;
+    const existing = monthlyMap.get(monthKey) || { usd: 0, krw: 0 };
+
+    if (d.currency === "KRW") {
+      existing.krw += d.dividend;
+    } else {
+      existing.usd += d.dividend;
+    }
+
+    monthlyMap.set(monthKey, existing);
+  });
+
+  return Array.from(monthlyMap.entries())
+    .map(([month, totals]) => ({
+      month,
+      totalUSD: totals.usd,
+      totalKRW: totals.krw,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+}
+
+/**
+ * 피벗 테이블 데이터 생성 (종목 × 월) - 특정 통화만
+ */
+function createPivotTableDataByCurrency(
+  dividends: DividendRecord[],
+  currency: string
+): PivotTableRow[] {
+  // 해당 통화의 배당만 필터링
+  const filtered = dividends.filter((d) => d.currency === currency);
+
+  if (filtered.length === 0) return [];
+
+  // 모든 월 목록 추출
+  const months = Array.from(
+    new Set(
+      filtered.map((d) => `${d.year}-${String(d.month).padStart(2, "0")}`)
+    )
+  ).sort();
+
+  // 티커별 월별 금액 집계
+  const pivotMap = new Map<string, Map<string, number>>();
+
+  filtered.forEach((d) => {
+    const monthKey = `${d.year}-${String(d.month).padStart(2, "0")}`;
+
+    if (!pivotMap.has(d.ticker)) {
+      pivotMap.set(d.ticker, new Map());
+    }
+    const tickerData = pivotMap.get(d.ticker)!;
+    tickerData.set(monthKey, (tickerData.get(monthKey) || 0) + d.dividend);
+  });
+
+  // 행 데이터 생성
+  const rows: PivotTableRow[] = Array.from(pivotMap.entries()).map(
+    ([ticker, monthlyData]) => {
+      const row: PivotTableRow = {
+        portfolioId: ticker,
+        ticker: ticker,
+        name: ticker,
+        currency: currency,
+      };
+
+      months.forEach((month) => {
+        row[month] = monthlyData.get(month) || 0;
+      });
+
+      // 연간 합계
+      row.total = Array.from(monthlyData.values()).reduce(
+        (sum, val) => sum + val,
+        0
+      );
+
+      return row;
+    }
+  );
+
+  // 합계 내림차순 정렬
+  rows.sort((a, b) => (b.total as number) - (a.total as number));
+
+  return rows;
+}
+
+/**
+ * Footer 데이터 생성 (월별 합계) - 통화별 분리
+ */
+function createPivotFooter(dividends: DividendRecord[]): PivotTableFooter {
+  const footer: PivotTableFooter = {
+    totalUSD: {},
+    totalKRW: {},
+  };
+
+  dividends.forEach((d) => {
+    const monthKey = `${d.year}-${String(d.month).padStart(2, "0")}`;
+
+    if (d.currency === "KRW") {
+      footer.totalKRW[monthKey] = (footer.totalKRW[monthKey] || 0) + d.dividend;
+    } else {
+      footer.totalUSD[monthKey] = (footer.totalUSD[monthKey] || 0) + d.dividend;
+    }
+  });
+
+  return footer;
+}
+
+/**
+ * 대시보드 요약 데이터 계산 - 통화별 분리
+ */
+function calculateSummary(dividends: DividendRecord[]): DashboardSummary {
+  const usdDividends = dividends.filter((d) => d.currency === "USD");
+  const krwDividends = dividends.filter((d) => d.currency === "KRW");
+
+  const totalUSD = usdDividends.reduce((sum, d) => sum + d.dividend, 0);
+  const totalKRW = krwDividends.reduce((sum, d) => sum + d.dividend, 0);
+
+  const tickersUSD = new Set(usdDividends.map((d) => d.ticker));
+  const tickersKRW = new Set(krwDividends.map((d) => d.ticker));
+
+  return {
+    totalUSD,
+    totalKRW,
+    stockCountUSD: tickersUSD.size,
+    stockCountKRW: tickersKRW.size,
+    dividendCountUSD: usdDividends.length,
+    dividendCountKRW: krwDividends.length,
+  };
+}
+
+/**
+ * 전체 대시보드 데이터 생성
+ */
+export function processDashboardData(
+  dividends: DividendRecord[],
+  year?: number
+): DashboardData {
+  // 연도 필터링
+  const filteredDividends = year
+    ? dividends.filter((d) => d.year === year)
+    : dividends;
+
+  // 각종 데이터 계산
+  const summary = calculateSummary(filteredDividends);
+  const monthlyData = aggregateMonthlyData(filteredDividends);
+  const pivotRowsUSD = createPivotTableDataByCurrency(filteredDividends, "USD");
+  const pivotRowsKRW = createPivotTableDataByCurrency(filteredDividends, "KRW");
+  const pivotFooter = createPivotFooter(filteredDividends);
+
+  // 사용 가능한 연도 목록 (전체 데이터 기준)
+  const availableYears = Array.from(new Set(dividends.map((d) => d.year))).sort(
+    (a, b) => b - a
+  );
+
+  return {
+    summary,
+    monthlyData,
+    pivotRowsUSD,
+    pivotRowsKRW,
+    pivotFooter,
+    availableYears,
+  };
+}
+
+/**
+ * 대시보드에 필요한 모든 데이터 조회
+ */
+export const getAllDashboardData = cache(async () => {
+  const dividends = await getDividends();
+  return { dividends };
 });

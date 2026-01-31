@@ -21,12 +21,25 @@ import type { PivotTableRow, PivotTableFooter } from "@/types/dividend";
 import { formatUSD, formatKRW, formatMonthShort } from "@/lib/dividend-utils";
 
 interface DividendTableProps {
+  title: string;
+  description: string;
   rows: PivotTableRow[];
   footer: PivotTableFooter;
+  currency: "USD" | "KRW";
 }
 
 // rerender-memo: 테이블 컴포넌트 메모이제이션
-export const DividendTable = memo(function DividendTable({ rows, footer }: DividendTableProps) {
+export const DividendTable = memo(function DividendTable({
+  title,
+  description,
+  rows,
+  footer,
+  currency,
+}: DividendTableProps) {
+  // 포맷 함수 선택
+  const formatAmount = currency === "USD" ? formatUSD : formatKRW;
+  const footerTotals = currency === "USD" ? footer.totalUSD : footer.totalKRW;
+
   // 동적으로 월 컬럼 추출
   const months = useMemo(() => {
     if (rows.length === 0) return [];
@@ -45,7 +58,6 @@ export const DividendTable = memo(function DividendTable({ rows, footer }: Divid
         cell: ({ row }) => (
           <div className="font-medium">
             <div>{row.original.ticker}</div>
-            <div className="text-xs text-muted-foreground">{row.original.name}</div>
           </div>
         ),
       },
@@ -57,7 +69,7 @@ export const DividendTable = memo(function DividendTable({ rows, footer }: Divid
       cell: ({ row }) => {
         const value = row.original[month] as number;
         return value > 0 ? (
-          <div className="text-right font-mono">{formatUSD(value)}</div>
+          <div className="text-right font-mono text-sm">{formatAmount(value)}</div>
         ) : (
           <div className="text-right text-muted-foreground">-</div>
         );
@@ -69,12 +81,12 @@ export const DividendTable = memo(function DividendTable({ rows, footer }: Divid
       header: "합계",
       cell: ({ row }) => {
         const value = row.original.total as number;
-        return <div className="text-right font-mono font-bold">{formatUSD(value)}</div>;
+        return <div className="text-right font-mono font-bold">{formatAmount(value)}</div>;
       },
     };
 
     return [...baseColumns, ...monthColumns, totalColumn];
-  }, [months]);
+  }, [months, formatAmount]);
 
   const table = useReactTable({
     data: rows,
@@ -83,20 +95,16 @@ export const DividendTable = memo(function DividendTable({ rows, footer }: Divid
   });
 
   // Footer 합계 계산
-  const totalUSD = useMemo(
-    () => Object.values(footer.totalUSD).reduce((sum, val) => sum + val, 0),
-    [footer.totalUSD]
-  );
-  const totalKRW = useMemo(
-    () => Object.values(footer.totalKRW).reduce((sum, val) => sum + val, 0),
-    [footer.totalKRW]
+  const grandTotal = useMemo(
+    () => Object.values(footerTotals).reduce((sum, val) => sum + val, 0),
+    [footerTotals]
   );
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>종목별 배당 내역</CardTitle>
-        <CardDescription>종목별 월별 배당금 (USD)</CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
@@ -137,26 +145,15 @@ export const DividendTable = memo(function DividendTable({ rows, footer }: Divid
               )}
             </TableBody>
             <TableFooter>
-              {/* USD 합계 행 */}
               <TableRow className="bg-muted/50">
-                <TableCell className="font-bold">합계 (USD)</TableCell>
+                <TableCell className="font-bold">합계</TableCell>
                 {months.map((month) => (
                   <TableCell key={month} className="text-right font-mono">
-                    {formatUSD(footer.totalUSD[month] || 0)}
+                    {formatAmount(footerTotals[month] || 0)}
                   </TableCell>
                 ))}
-                <TableCell className="text-right font-mono font-bold">{formatUSD(totalUSD)}</TableCell>
-              </TableRow>
-              {/* KRW 합계 행 */}
-              <TableRow className="bg-muted/50">
-                <TableCell className="font-bold">합계 (KRW)</TableCell>
-                {months.map((month) => (
-                  <TableCell key={month} className="text-right font-mono text-xs">
-                    {formatKRW(footer.totalKRW[month] || 0)}
-                  </TableCell>
-                ))}
-                <TableCell className="text-right font-mono font-bold text-xs">
-                  {formatKRW(totalKRW)}
+                <TableCell className="text-right font-mono font-bold">
+                  {formatAmount(grandTotal)}
                 </TableCell>
               </TableRow>
             </TableFooter>
