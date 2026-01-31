@@ -62,7 +62,7 @@ export default function ChartContent({ data }: ChartContentProps) {
           content={({ active, payload, label }) => {
             if (!active || !payload?.length) return null;
             return (
-              <div className="rounded-lg border bg-background p-2 shadow-sm">
+              <div className="rounded-lg border bg-background p-2 shadow-xs">
                 <p className="font-medium">{label}</p>
                 {payload.map((entry, index) => {
                   if ((entry.value as number) === 0) return null;
@@ -83,7 +83,7 @@ export default function ChartContent({ data }: ChartContentProps) {
           <Bar
             yAxisId="left"
             dataKey="USD"
-            fill="hsl(var(--primary))"
+            fill="var(--color-chart-1)"
             radius={[4, 4, 0, 0]}
             name="USD"
           />
@@ -92,7 +92,7 @@ export default function ChartContent({ data }: ChartContentProps) {
           <Bar
             yAxisId={hasUSD ? "right" : "left"}
             dataKey="KRW"
-            fill="hsl(var(--chart-2))"
+            fill="var(--color-chart-2)"
             radius={[4, 4, 0, 0]}
             name="KRW"
           />
